@@ -23,6 +23,11 @@ module Neo4j
           "Storage #{object_id} node: #{@node.id} rel_type: #{@rel_type} outgoing #{@outgoing_rels.size} incoming #{@incoming_rels.size}"
         end
 
+        def clear_unpersisted
+          @outgoing_rels.clear
+          @incoming_rels.clear
+        end
+
         def remove_from_identity_map
           @outgoing_rels.each {|r| Neo4j::IdentityMap.remove(r._java_rel)}
           @incoming_rels.each {|r| Neo4j::IdentityMap.remove(r._java_rel)}
@@ -35,6 +40,10 @@ module Neo4j
           # count relationship which has not yet been persisted
           counter += relationships(dir).size
           counter
+        end
+
+        def to_other(other)
+          (@node._java_node) ? @node._java_node.rels(@rel_type).to_other(other) : raise('node.rels(...).to_other() not allowed on a node that is not persisted')
         end
 
         def build(attrs)
@@ -172,7 +181,7 @@ module Neo4j
           end
 
           in_rels.each do |rel|
-            rel.start_node.rm_outgoing_rel(@rel_type.to_sym, rel)
+            rel.start_node.rm_outgoing_rel(@rel_type.to_sym, rel) if rel.start_node
             success = rel.persisted? || rel.save
             # don't think this can happen - just in case, TODO
             raise "Can't save incoming #{rel}, validation errors ? #{rel.errors.inspect}" unless success
