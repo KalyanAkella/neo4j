@@ -1,3 +1,4 @@
+srand # Workaround for JRuby bug 1.6.5
 $LOAD_PATH.unshift File.expand_path("../lib", __FILE__)
 
 require 'rake'
@@ -12,6 +13,11 @@ desc "Run all specs with rcov"
 RSpec::Core::RakeTask.new("spec:coverage") do |t|
   t.rcov = true
   t.rcov_opts = %w{--rails --include views -Ispec --exclude gems\/,spec\/,features\/,seeds\/}
+  t.rspec_opts = ["-c"]
+end
+
+desc "Run all specs"
+RSpec::Core::RakeTask.new("spec") do |t|
   t.rspec_opts = ["-c"]
 end
 
@@ -60,5 +66,9 @@ task 'upload-docs' do
          "ronge@rubyforge.org:/var/www/gforge-projects/neo4j/"
 end
 
-task :default => 'spec:coverage'
 
+if RUBY_VERSION.include?("1.8")
+  task :default => 'spec:coverage'
+else
+  task :default => 'spec'
+end

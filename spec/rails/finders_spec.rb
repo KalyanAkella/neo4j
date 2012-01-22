@@ -61,10 +61,10 @@ describe "finders" do
 
     context ".find" do
       def nonexistant_id
-        i       = rand(1000)
+        i       = rand(1000) + 1000000
         all_ids = Neo4j.all_nodes.map(&:id)
         while (all_ids.include?(i))
-          i = rand(1000)
+          i = rand(1000) + 1000000
         end
         i
       end
@@ -73,14 +73,33 @@ describe "finders" do
         Neo4j.all_nodes.select { |node| !node.is_a?(FindableModel) }.map(&:id)
       end
 
+      it "should return nil when passed a negative id" do
+        FindableModel.find(-99).should be_nil
+      end
+
+      it "should return nil when passed " do
+        FindableModel.find(-99).should be_nil
+      end
+
       it "should return nil when passed a non-existant id" do
         FindableModel.find(nonexistant_id).should be_nil
         FindableModel.find(nonexistant_id.to_s).should be_nil
       end
 
       it "should return an empty array when passed multiple non-existant ids" do
-        FindableModel.find(nonexistant_id, nonexistant_id, nonexistant_id, nonexistant_id).should == []
-        FindableModel.find(nonexistant_id.to_s, nonexistant_id.to_s, nonexistant_id.to_s, nonexistant_id.to_s).should == []
+        ids = [nonexistant_id, nonexistant_id, nonexistant_id, nonexistant_id]
+        all = FindableModel.find(*ids)
+        all.each {|x| puts "found1: #{x.id}/#{x.class} for #{ids.join(', ')}"}
+
+        ids2 = [nonexistant_id, nonexistant_id, nonexistant_id, nonexistant_id]
+        all2 = FindableModel.find(*ids2)
+        all2.each {|x| puts "found2: #{x.id}/#{x.class} for #{ids2.join(', ')}"}
+
+        all.should be_empty
+        all2.should be_empty
+
+        #FindableModel.find(nonexistant_id, nonexistant_id, nonexistant_id, nonexistant_id).should == []
+        #FindableModel.find(nonexistant_id.to_s, nonexistant_id.to_s, nonexistant_id.to_s, nonexistant_id.to_s).should == []
       end
 
       it "should return nil for ids allocated to other node types" do
@@ -337,36 +356,6 @@ describe "finders" do
     end
 
 	end
-
-  context "pagination" do
-    it "#paginate(:all, query, :per_page => , :page=>, :sort=>)" do
-      it_should_be_sorted([0,1,2,3], FindableModel.paginate(:all, 'name: Test*', :page => 1, :per_page => 5, :sort => {:name => :asc}))
-      it_should_be_sorted([0,1], FindableModel.paginate(:all, 'name: Test*', :page => 1, :per_page => 2, :sort => {:name => :asc}))
-      it_should_be_sorted([2,3], FindableModel.paginate(:all, 'name: Test*', :page => 2, :per_page => 2, :sort => {:name => :asc}))
-      it_should_be_sorted([3,2,1,0], FindableModel.paginate(:all, 'name: Test*', :page => 1, :per_page => 5, :sort => {:name => :desc}))
-    end
-
-    it "#all(query).asc(field).paginate(:per_page => , :page=>)" do
-      it_should_be_sorted([0,1,2], FindableModel.all('name: Test*').asc(:name).paginate(:page => 1, :per_page => 3))
-      it_should_be_sorted([3], FindableModel.all('name: Test*').asc(:name).paginate(:page => 2, :per_page => 3))
-    end
-
-    it "#all.paginate(:per_page => , :page=>)" do
-      res = FindableModel.all.paginate(:page => 1, :per_page => 5)
-      res.current_page.should == 1
-      res.total_entries.should == 4
-      res.size.should == 4
-      res.should include(@test_0, @test_2, @test_3, @test_4)
-    end
-
-  end
-
-  def it_should_be_sorted(order, result)
-    res = [*result].collect{|n| n.to_s}
-    expectation = order.collect{|n| "Test #{n}"}
-    expectation.reverse! if order == :desc
-    res.should == expectation
-  end
 
 	context "for single records" do
 		subject { @test_2 }

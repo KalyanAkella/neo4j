@@ -37,8 +37,7 @@ module Neo4j
     #
     class LuceneQuery
       include Enumerable
-      include WillPaginate::Finders::Base
-      attr_accessor :left_and_query, :left_or_query
+      attr_accessor :left_and_query, :left_or_query, :right_not_query
 
       def initialize(index, decl_props, query, params={})
         @index      = index
@@ -52,30 +51,9 @@ module Neo4j
         end
       end
 
-      def wp_query(options, pager, args, &block) #:nodoc:
-        @params[:page]     = pager.current_page
-        @params[:per_page] = pager.per_page
-        pager.replace [*self]
-        pager.total_entries = size
-      end
-
-      # Since we include the Ruby Enumerable mixin we need this method.
+      # Implements the Ruby +Enumerable+ interface
       def each
-        if @params.include?(:per_page)
-          # paginate the result, used by the will_paginate gem
-          page     = @params[:page] || 1
-          per_page = @params[:per_page]
-          to       = per_page * page
-          from     = to - per_page
-          i        = 0
-          hits.each do |node|
-            yield node.wrapper if i >= from
-            i += 1
-            break if i >= to
-          end
-        else
-          hits.each { |n| yield n.wrapper }
-        end
+        hits.each { |x| yield x.wrapper }
       end
 
       # Close hits
@@ -156,9 +134,33 @@ module Neo4j
       #  Person.find(:name=>'kalle').and(:age => 3)
       #
       def and(query2)
-        new_query                = LuceneQuery.new(@index, @decl_props, query2)
-        new_query.left_and_query = self
-        new_query
+        LuceneQuery.new(@index, @decl_props, query2).tap { |new_query| new_query.left_and_query = self }
+      end
+
+      # Create an OR lucene query.
+      #
+      # ==== Parameters
+      # query2 :: the query that should be OR together
+      #
+      # ==== Example
+      #
+      #  Person.find(:name=>'kalle').or(:age => 3)
+      #
+      def or(query2)
+        LuceneQuery.new(@index, @decl_props, query2).tap { |new_query| new_query.left_or_query = self }
+      end
+
+      # Create a NOT lucene query.
+      #
+      # ==== Parameters
+      # query2 :: the query that should exclude matching results
+      #
+      # ==== Example
+      #
+      #  Person.find(:age => 3).not(:name=>'kalle')
+      #
+      def not(query2)
+        LuceneQuery.new(@index, @decl_props, query2).tap { |new_query| new_query.right_not_query = self }
       end
 
 
@@ -175,11 +177,26 @@ module Neo4j
       end
 
       def build_and_query(query) #:nodoc:
-        left_query = @left_and_query.build_query
-        and_query  = org.apache.lucene.search.BooleanQuery.new
-        and_query.add(left_query, org.apache.lucene.search.BooleanClause::Occur::MUST)
-        and_query.add(query, org.apache.lucene.search.BooleanClause::Occur::MUST)
-        and_query
+        build_composite_query(@left_and_query.build_query, query, org.apache.lucene.search.BooleanClause::Occur::MUST)
+      end
+
+      def build_or_query(query) #:nodoc:
+        build_composite_query(@left_or_query.build_query, query, org.apache.lucene.search.BooleanClause::Occur::SHOULD)
+      end
+
+      def build_not_query(query) #:nodoc:
+        right_query = @right_not_query.build_query
+        composite_query  = org.apache.lucene.search.BooleanQuery.new
+        composite_query.add(query, org.apache.lucene.search.BooleanClause::Occur::MUST_NOT)
+        composite_query.add(right_query, org.apache.lucene.search.BooleanClause::Occur::MUST)
+        composite_query
+      end
+
+      def build_composite_query(left_query, right_query, opeartor) #:nodoc:
+        composite_query  = org.apache.lucene.search.BooleanQuery.new
+        composite_query.add(left_query, opeartor)
+        composite_query.add(right_query, opeartor)
+        composite_query
       end
 
       def build_sort_query(query) #:nodoc:
@@ -224,6 +241,8 @@ module Neo4j
         query = @query
         query = build_hash_query(query) if Hash === query
         query = build_and_query(query) if @left_and_query
+        query = build_or_query(query) if @left_or_query
+        query = build_not_query(query) if @right_not_query
         query = build_sort_query(query) if @order
         query
       end

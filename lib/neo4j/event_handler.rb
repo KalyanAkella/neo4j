@@ -110,7 +110,7 @@ module Neo4j
       removed_relationship_properties_map = property_map(data.removed_relationship_properties)
       add_deleted_nodes(data, class_change_map, removed_node_properties_map)
       empty_map = java.util.HashMap.new
-      data.assigned_node_properties.each { |tx_data| property_changed(tx_data.entity, tx_data.key, tx_data.previously_commited_value, tx_data.value) }
+      data.assigned_node_properties.each { |tx_data| property_changed(tx_data.entity, tx_data.key, tx_data.previously_commited_value, tx_data.value) unless tx_data.key == '_classname'}
       data.removed_node_properties.each { |tx_data| property_changed(tx_data.entity, tx_data.key, tx_data.previously_commited_value, nil) unless deleted_node_identity_map.containsKey(tx_data.entity.getId) }
       data.deleted_nodes.each { |node| node_deleted(node, removed_node_properties_map.get(node.getId)||empty_map, deleted_relationship_set, deleted_node_identity_map)}
       data.created_relationships.each {|rel| relationship_created(rel, created_node_identity_map)}
@@ -118,10 +118,15 @@ module Neo4j
       data.assigned_relationship_properties.each { |tx_data| rel_property_changed(tx_data.entity, tx_data.key, tx_data.previously_commited_value, tx_data.value) }
       data.removed_relationship_properties.each {|tx_data| rel_property_changed(tx_data.entity, tx_data.key, tx_data.previously_commited_value, nil) unless deleted_relationship_set.contains_rel?(tx_data.entity) }
       classes_changed(class_change_map)
+    rescue Exception => e
+      # since these exceptions gets swallowed
+      puts "ERROR in before commit hook #{e}"
+      puts e.backtrace.join("\n")
     end
 
+
     def iterate_created_nodes(nodes, class_change_map)
-      identity_map = java.util.HashMap.new(nodes.size)
+      identity_map = java.util.HashMap.new
       nodes.each do |node|
         identity_map.put(node.neo_id,node) #using put due to a performance regression in JRuby 1.6.4
         instance_created(node, class_change_map)
@@ -131,13 +136,13 @@ module Neo4j
     end
 
     def deleted_node_identity_map(nodes)
-      identity_map = java.util.HashMap.new(nodes.size)
+      identity_map = java.util.HashMap.new
       nodes.each{|node| identity_map.put(node.neo_id,node)} #using put due to a performance regression in JRuby 1.6.4
       identity_map
     end
 
     def relationship_set(relationships)
-      relationship_set = Neo4j::RelationshipSet.new(relationships.size)
+      relationship_set = Neo4j::RelationshipSet.new#(relationships.size)
       relationships.each{|rel| relationship_set.add(rel)}
       relationship_set
     end

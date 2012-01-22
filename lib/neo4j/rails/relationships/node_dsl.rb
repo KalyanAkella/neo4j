@@ -9,7 +9,6 @@ module Neo4j
       #
       class NodesDSL
         include Enumerable
-        include Neo4j::Paginate
 
         def initialize(storage, dir)
           @storage = storage
@@ -51,7 +50,14 @@ module Neo4j
 
         # Adds a new node to the relationship
         def <<(other)
-          @storage.create_relationship_to(other, @dir)
+          if other.is_a?(String)
+            # this is typically called in an assignment operator, person.friends = ['42', '32']
+            node = Neo4j::Node.load(other)
+            @storage.create_relationship_to(node, @dir) unless all.include?(node)
+          else
+            # allow multiple relationships to the same node
+            @storage.create_relationship_to(other, @dir)
+          end
           self
         end
 
@@ -166,8 +172,8 @@ module Neo4j
 
         alias :length :size
 
-        def each(&block)
-          @storage.each_node(@dir, &block)
+        def each
+          @storage.each_node(@dir) {|n| yield n} # Why passing the &block through doesn't work on JRuby 1.9?
         end
 
         def delete(*nodes)
@@ -185,7 +191,11 @@ module Neo4j
         def to_s
           "Node dir: #{@dir}, #{@storage}"
         end
-        
+
+        def rel_changed?
+          @storage.persisted?
+        end
+
         protected
 
 

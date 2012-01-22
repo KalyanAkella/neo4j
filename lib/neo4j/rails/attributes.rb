@@ -38,7 +38,7 @@ module Neo4j
         key_s = key.to_s
         if !@properties.has_key?(key_s) || @properties[key_s] != value
           attribute_will_change!(key_s)
-          @properties[key_s] = value
+          @properties[key_s] = value.nil? ? attribute_defaults[key_s] : value
         end
         value
       end
@@ -98,16 +98,17 @@ module Neo4j
               send(name + "=", nil)
             else
 
-              value = if :time == decl_type
+              #TODO: Consider extracting hardcoded assignments into "Binders"
+              value = if Neo4j::TypeConverters::TimeConverter.convert?(decl_type)
                 instantiate_time_object(name, values)
-              elsif :date == decl_type
+              elsif Neo4j::TypeConverters::DateConverter.convert?(decl_type)
                 begin
                   values = values_with_empty_parameters.collect do |v| v.nil? ? 1 : v end
                   Date.new(*values)
                 rescue ArgumentError => ex # if Date.new raises an exception on an invalid date
                   instantiate_time_object(name, values).to_date # we instantiate Time object and convert it back to a date thus using Time's logic in handling invalid dates
                 end
-              elsif :datetime == decl_type
+              elsif Neo4j::TypeConverters::DateTimeConverter.convert?(decl_type)
                 DateTime.new(*values)
               else
                 raise "Unknown type #{decl_type}"
@@ -252,7 +253,7 @@ module Neo4j
 
       # Wrap the setter in a conversion from Ruby to Java
       def write_local_property_with_type_conversion(property, value)
-        self.send("#{property}_before_type_cast=", value) if respond_to?("#{property}_before_type_cast=")
+        @properties_before_type_cast[property.to_sym]=value if self.class._decl_props.has_key? property.to_sym
         write_local_property_without_type_conversion(property, Neo4j::TypeConverters.to_java(self.class, property, value))
       end
     end

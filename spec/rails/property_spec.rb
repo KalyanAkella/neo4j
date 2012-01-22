@@ -23,6 +23,7 @@ end
 class DateProperties < Neo4j::Rails::Model
   property :date_time, 	    :type => :datetime
   property :date_property,  :type => :date
+  property :date_as_type,   :type => Date
   property :time,           :type => :time
 
 end
@@ -300,17 +301,30 @@ describe DateProperties do
 
   context "update_attributes" do
     it "with Time" do
-      params = {"time(1i)"=>"2006", "time(2i)"=>"1", "time(3i)"=>"5", "time(4i)"=>"02", "time(5i)"=>"03"}
+      params = {"time(1i)"=>"2006", "time(2i)"=>"1", "time(3i)"=>"5", "time(4i)"=>"23", "time(5i)"=>"59"}
+      local = Time.local_time(2006, 1, 5, 23, 59)
+      local.should_not be_utc # just make it explicit
+      utc = local.getutc
+
       subject.update_attributes(params)
-      subject.time.class.should == Time
+      subject.time.should === utc
       subject.time.year.should == 2006
       subject.time.month.should == 1
-      subject.time.day.should == 5
-      #subject.time.hour.should == 2 # TODO it is stored as UTC time !!!
-      #subject.time.min.should == 3
+      subject.time.day.should == utc.day
+      subject.time.hour.should == utc.hour
+      subject.time.min.should == utc.min
     end
 
     it "with Date" do
+      params = {"date_as_type(1i)"=>"2031", "date_as_type(2i)"=>"2", "date_as_type(3i)"=>"10"}
+      subject.update_attributes(params)
+      subject.date_as_type.year.should == 2031
+      subject.date_as_type.month.should == 2
+      subject.date_as_type.day.should == 10
+      subject.date_as_type.class.should == Date
+    end
+
+    it "with :date" do
       params = {"date_property(1i)"=>"2031", "date_property(2i)"=>"2", "date_property(3i)"=>"10"}
       subject.update_attributes(params)
       subject.date_property.year.should == 2031

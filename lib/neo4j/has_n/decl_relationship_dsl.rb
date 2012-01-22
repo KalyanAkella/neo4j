@@ -34,7 +34,7 @@ module Neo4j
     class DeclRelationshipDsl
       include Neo4j::ToJava
 
-      attr_reader :target_class, :dir, :rel_type
+      attr_reader :target_class, :source_class, :dir, :rel_type
 
       def initialize(method_id, has_one, target_class)
         @dir = :outgoing
@@ -42,6 +42,7 @@ module Neo4j
         @has_one = has_one
         @rel_type = method_id
         @target_class = target_class
+        @source_class = target_class
       end
 
       def to_s
@@ -63,7 +64,7 @@ module Neo4j
       def java_dir
         dir_to_java(@dir)
       end
-      
+
       def each_node(node, &block) #:nodoc:
         node._java_node.getRelationships(java_rel_type, java_dir).each do |rel|
           block.call(rel.getOtherNode(node).wrapper)
@@ -141,7 +142,7 @@ module Neo4j
         if (Class === target)
           # handle e.g. has_n(:friends).to(class)
           @target_class = target
-          @rel_type = "#{@target_class}##{@method_id}"
+          @rel_type = "#{@source_class}##{@method_id}"
         elsif (Symbol === target)
           # handle e.g. has_n(:friends).to(:knows)
           @rel_type = target.to_s
@@ -163,7 +164,7 @@ module Neo4j
       #   class FileNode
       #     include Neo4j::NodeMixin
       #     # will only traverse any incoming relationship of type files from node FileNode
-      #     has_one(:folder).from(FileNode, :files)
+      #     has_one(:folder).from(FolderNode, :files)
       #   end
       #
       #   file = FileNode.new
@@ -183,7 +184,7 @@ module Neo4j
       #   end
       #
       #   file = FileNode.new
-      #   # create an outgoing relationship of type 'FileNode#files' from folder node to file
+      #   # create an outgoing relationship of type 'files' from folder node to file
       #   file.folder = FolderNode.new
       #
       #
@@ -192,14 +193,9 @@ module Neo4j
 
         if (args.size > 1)
           # handle specified (prefixed) relationship, e.g. has_n(:known_by).from(clazz, :type)
-          @rel_type = "#{@target_class}##{args[1]}"
           @target_class = args[0]
-          other_class_dsl = @target_class._decl_rels[args[1]]
-          if other_class_dsl
-            @relationship = other_class_dsl.relationship_class
-          else
-            Neo4j.logger.warn "Unknown outgoing relationship #{args[1]} on #{@target_class}"
-          end
+          @rel_type = "#{@target_class}##{args[1]}"
+          @relationship_name = args[1]
         elsif (Symbol === args[0])
           # handle unspecified (unprefixed) relationship, e.g. has_n(:known_by).from(:type)
           @rel_type = args[0]
@@ -235,7 +231,15 @@ module Neo4j
       end
 
       def relationship_class # :nodoc:
-        @relationship 
+        if !@relationship_name.nil? && @relationship.nil?
+          other_class_dsl = @target_class._decl_rels[@relationship_name]
+          if other_class_dsl
+            @relationship = other_class_dsl.relationship_class
+          else
+            Neo4j.logger.warn "Unknown outgoing relationship #{@relationship_name} on #{@target_class}"
+          end
+        end
+        @relationship
       end
     end
   end
