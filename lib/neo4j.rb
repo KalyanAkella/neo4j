@@ -6,7 +6,6 @@ require 'tmpdir'
 
 # Rails
 require 'rails/railtie'
-require 'active_support/core_ext/class/inheritable_attributes'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_model'
 
@@ -46,4 +45,4 @@ require 'orm_adapter/adapters/neo4j'
 require 'neo4j/identity_map'
 
 
-Dir["#{File.dirname(__FILE__)}/tasks/**/*.rake"].each { |ext| load ext } if defined?(Rake)
+Dir["#{File.dirname(__FILE__)}/tasks/**/*.rake"].each { |ext| load ext } if defined?(Rake) && respond_to?(:namespace)

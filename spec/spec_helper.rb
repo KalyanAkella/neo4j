@@ -11,7 +11,6 @@ begin
   require 'shoulda-matchers'
   require 'its'
   require 'benchmark'
-  require 'pry'
 
   $LOAD_PATH.unshift File.join(File.dirname(__FILE__), "..", "lib")
 
@@ -42,23 +41,24 @@ begin
     @tx = Neo4j::Transaction.new
   end
 
-  # ensure the translations get picked up for tests
+# ensure the translations get picked up for tests
   I18n.load_path += Dir[File.join(File.dirname(__FILE__), '..', 'config', 'locales', '*.{rb,yml}')]
 
-  # Requires supporting ruby files with custom matchers and macros, etc,
-  # in spec/support/ and its subdirectories.
-  Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
+# Requires supporting ruby files with custom matchers and macros, etc,
+# in spec/support/ and its subdirectories.
+  Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each { |f| require f }
 
-  # load all fixture classes
-  Dir["#{File.dirname(__FILE__)}/fixture/**/*.rb"].each {|f| require f}
+# load all fixture classes
+  Dir["#{File.dirname(__FILE__)}/fixture/**/*.rb"].each { |f| require f }
 
-  # set database storage location
+# set database storage location
   Neo4j::Config[:storage_path] = File.join(Dir.tmpdir, 'neo4j-rspec-tests')
 
   RSpec.configure do |c|
     $name_counter = 0
 
     c.filter_run_excluding :identity_map => true if not Neo4j::IdentityMap.enabled
+    c.filter_run_excluding :slow => ENV['TRAVIS'] != 'true'
 
     c.before(:each, :type => :transactional) do
       new_tx
@@ -104,7 +104,7 @@ begin
     end
   end
 
-  def create_model(base_class = Neo4j::Model,name=nil, &block)
+  def create_model(base_class = Neo4j::Model, name=nil, &block)
     klass = Class.new(base_class)
     TempModel.set(klass, name)
     base_class.inherited(klass)
@@ -146,5 +146,5 @@ begin
     klass
   end
 
-end unless @_neo4j_rspec_loaded
 
+end unless @_neo4j_rspec_loaded
